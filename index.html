@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Visual Pathway and Visual Fields Simulator</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#101b2c;color:#eef4ff;
+  font:16px system-ui,sans-serif;
+}
+main{max-width:1100px;margin:auto;padding:24px}
+h1{font-size:28px;margin:0 0 8px}
+h2{font-size:19px;margin:0 0 12px}
+p{line-height:1.6}
+.panel{
+  background:#192940;border:1px solid #334a65;
+  border-radius:16px;padding:18px;margin:16px 0;
+}
+.note,.muted{color:#b7c7dc}
+.note{font-size:14px}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+button,select{
+  font:inherit;color:#eef4ff;background:#263e5e;
+  border:1px solid #6681a1;border-radius:8px;
+  padding:10px;cursor:pointer;max-width:100%;
+}
+button:hover,select:hover{border-color:#65dde7}
+button:focus-visible,select:focus-visible,input:focus-visible{
+  outline:3px solid #ffd47c;outline-offset:3px;
+}
+input{accent-color:#56d3df}
+svg{display:block;width:100%;height:auto}
+#answer{line-height:1.6}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:14px}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%}
+.node{fill:#263e5e;stroke:#6986a5;stroke-width:2}
+.label{fill:#eef4ff;font-size:16px;text-anchor:middle}
+.small{fill:#b7c7dc;font-size:13px;text-anchor:middle}
+.path{fill:none;stroke-width:5;opacity:.65}
+.packet{stroke:white;stroke-width:1}
+a{color:#8ddbe9}
+footer{
+  text-align:center;margin-top:28px;padding-top:16px;
+  border-top:1px solid #334a65;
+}
+@media(max-width:650px){
+  main{padding:14px}
+  h1{font-size:24px}
+  select{width:100%}
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Visual Pathway and Visual Fields</h1>
+<p class="muted">
+  Select a lesion and trace how its location changes the visual field.
+  Field diagrams use the patient's view of visual space.
+</p>
+
+<div class="panel">
+  <div class="controls">
+    <label for="lesion">Lesion:</label>
+    <select id="lesion">
+      <option value="normal">Normal</option>
+      <option value="RON">Right optic nerve</option>
+      <option value="LON">Left optic nerve</option>
+      <option value="CH">Central optic chiasm</option>
+      <option value="RT">Right optic tract</option>
+      <option value="LT">Left optic tract</option>
+      <option value="RL">Right LGN</option>
+      <option value="LL">Left LGN</option>
+      <option value="RM">Right temporal optic radiation / Meyer’s loop</option>
+      <option value="LM">Left temporal optic radiation / Meyer’s loop</option>
+      <option value="RP">Right parietal optic radiation</option>
+      <option value="LP">Left parietal optic radiation</option>
+      <option value="RR">Right complete optic radiation</option>
+      <option value="LR">Left complete optic radiation</option>
+      <option value="RC">Right primary visual cortex</option>
+      <option value="LC">Left primary visual cortex</option>
+    </select>
+
+    <button id="play" type="button">Pause signals</button>
+    <button id="reset" type="button">Reset to normal</button>
+  </div>
+
+  <p>
+    <label>
+      <input id="predict" type="checkbox">
+      Predict mode: hide fields and explanation
+    </label>
+    <button id="reveal" type="button">Reveal answer</button>
+  </p>
+
+  <p>
+    <label>
+      <input id="sparing" type="checkbox">
+      Illustrate macular sparing for a visual cortex lesion
+    </label>
+  </p>
+
+  <div class="legend">
+    <span><i class="dot" style="background:#ffcf69"></i> Left visual hemifield</span>
+    <span><i class="dot" style="background:#6cdde8"></i> Right visual hemifield</span>
+    <span><i class="dot" style="background:#a14e63"></i> Field loss / selected lesion</span>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Visual fields</h2>
+  <p class="note">
+    Both circles show visual space as seen by the patient:
+    left on the diagram means left in visual space.
+    The circles are schematic, not perimetry plots.
+  </p>
+
+  <svg viewBox="0 0 1000 400" role="img"
+       aria-label="Visual fields of the left and right eyes">
+    <defs>
+      <clipPath id="fieldClipL"><circle cx="280" cy="195" r="130"/></clipPath>
+      <clipPath id="fieldClipR"><circle cx="720" cy="195" r="130"/></clipPath>
+      <pattern id="lossPattern" width="12" height="12"
+               patternUnits="userSpaceOnUse">
+        <rect width="12" height="12" fill="#703748"/>
+        <path d="M-3 3 L3 -3 M0 12 L12 0 M9 15 L15 9"
+              stroke="#d5899c" stroke-width="2"/>
+      </pattern>
+    </defs>
+
+    <text x="280" y="30" class="label">LEFT eye visual field</text>
+    <text x="720" y="30" class="label">RIGHT eye visual field</text>
+
+    <g id="fields"></g>
+
+    <g fill="none" stroke="#e4edf9" stroke-width="2">
+      <circle cx="280" cy="195" r="130"/>
+      <circle cx="720" cy="195" r="130"/>
+    </g>
+
+    <g class="small">
+      <text x="130" y="200">Temporal</text>
+      <text x="430" y="200">Nasal</text>
+      <text x="570" y="200">Nasal</text>
+      <text x="870" y="200">Temporal</text>
+      <text x="280" y="55">Superior</text>
+      <text x="720" y="55">Superior</text>
+      <text x="280" y="355">Inferior</text>
+      <text x="720" y="355">Inferior</text>
+      <text x="500" y="390">Hatching indicates visual field loss</text>
+    </g>
+  </svg>
+</div>
+
+<div class="panel">
+  <h2>Visual pathway</h2>
+  <p class="note">
+    Patient's left side is on the left of this functional diagram.
+    Nasal retinal fibers cross; temporal retinal fibers remain
+    ipsilateral. Each postchiasmal pathway carries the opposite
+    visual hemifield. Moving dots trace representative signals.
+  </p>
+
+  <svg id="circuit" viewBox="0 0 1000 720" role="img"
+       aria-label="Retinal projections through chiasm, optic tracts, LGN, radiations and visual cortex">
+    <g id="paths"></g>
+
+    <g>
+      <rect class="node" x="150" y="40" width="260" height="70" rx="12"/>
+      <rect class="node" x="590" y="40" width="260" height="70" rx="12"/>
+      <rect id="nodeLON" class="node" x="185" y="135" width="190" height="45" rx="10"/>
+      <rect id="nodeRON" class="node" x="625" y="135" width="190" height="45" rx="10"/>
+      <rect id="nodeCH" class="node" x="385" y="225" width="230" height="50" rx="10"/>
+      <rect id="nodeLT" class="node" x="185" y="300" width="190" height="45" rx="10"/>
+      <rect id="nodeRT" class="node" x="625" y="300" width="190" height="45" rx="10"/>
+      <rect id="nodeLL" class="node" x="185" y="375" width="190" height="45" rx="10"/>
+      <rect id="nodeRL" class="node" x="625" y="375" width="190" height="45" rx="10"/>
+      <rect id="nodeLM" class="node" x="85" y="470" width="180" height="65" rx="10"/>
+      <rect id="nodeLP" class="node" x="290" y="470" width="180" height="65" rx="10"/>
+      <rect id="nodeRM" class="node" x="530" y="470" width="180" height="65" rx="10"/>
+      <rect id="nodeRP" class="node" x="735" y="470" width="180" height="65" rx="10"/>
+      <rect id="nodeLR" class="node" x="185" y="560" width="190" height="40" rx="10"/>
+      <rect id="nodeRR" class="node" x="625" y="560" width="190" height="40" rx="10"/>
+      <rect id="nodeLC" class="node" x="150" y="635" width="260" height="55" rx="10"/>
+      <rect id="nodeRC" class="node" x="590" y="635" width="260" height="55" rx="10"/>
+    </g>
+
+    <g class="label">
+      <text x="280" y="66">LEFT retina</text>
+      <text x="720" y="66">RIGHT retina</text>
+      <text x="280" y="163">Left optic nerve</text>
+      <text x="720" y="163">Right optic nerve</text>
+      <text x="500" y="255">Optic chiasm</text>
+      <text x="280" y="328">Left optic tract</text>
+      <text x="720" y="328">Right optic tract</text>
+      <text x="280" y="403">Left LGN</text>
+      <text x="720" y="403">Right LGN</text>
+      <text x="175" y="495">Temporal radiation</text>
+      <text x="175" y="520">Meyer’s loop</text>
+      <text x="380" y="495">Parietal radiation</text>
+      <text x="380" y="520">Inferior field</text>
+      <text x="620" y="495">Temporal radiation</text>
+      <text x="620" y="520">Meyer’s loop</text>
+      <text x="825" y="495">Parietal radiation</text>
+      <text x="825" y="520">Inferior field</text>
+      <text x="280" y="585">Complete radiation</text>
+      <text x="720" y="585">Complete radiation</text>
+      <text x="280" y="668">Left primary visual cortex</text>
+      <text x="720" y="668">Right primary visual cortex</text>
+    </g>
+
+    <g class="small">
+      <text x="215" y="92">Temporal</text>
+      <text x="345" y="92">Nasal</text>
+      <text x="655" y="92">Nasal</text>
+      <text x="785" y="92">Temporal</text>
+    </g>
+
+    <g id="packets"></g>
+  </svg>
+</div>
+
+<div class="panel">
+  <h2>Interpretation</h2>
+  <div id="answer"></div>
+</div>
+
+<div class="panel note">
+  <h2>Teaching points and limitations</h2>
+  <p>
+    The retinal image is reversed horizontally and vertically.
+    Temporal visual fields project to nasal retina; nasal
+    visual fields project to temporal retina. Superior visual
+    fields project to inferior retina and inferior visual
+    fields to superior retina.
+  </p>
+  <p>
+    Nasal retinal fibers cross in the optic chiasm. A unilateral
+    postchiasmal lesion therefore affects the contralateral
+    visual field in both eyes. Inferior retinal fibers carrying
+    the superior field travel through the temporal optic
+    radiation; superior retinal fibers carrying the inferior
+    field travel through the parietal radiation.
+  </p>
+  <p>
+    Lesions are idealized: complete optic nerve loss, selective
+    central crossing-fiber loss, complete tract or LGN loss,
+    and quadrant-specific radiation loss. Actual lesions may
+    produce partial, irregular, or incongruous defects.
+    LGN lesions can have patterns other than complete hemianopia.
+  </p>
+  <p>
+    Macular sparing is optional and is not universal in cortical
+    lesions. Its illustrated size is arbitrary. Physiological
+    blind spots, monocular field extent differences, the temporal
+    crescent, and detailed cortical retinotopy are not modeled.
+    Preserved central vision does not imply that all other
+    visual functions are normal.
+  </p>
+  <p>
+    The pathway diagram traces hemifields rather than separate
+    superior and inferior signal streams. The optic radiation
+    branches are schematic. Moving dots indicate connectivity,
+    not conduction speed.
+  </p>
+  <p>
+    References:
+    <a href="https://www.ncbi.nlm.nih.gov/books/NBK10799/"
+       target="_blank" rel="noopener noreferrer">
+      Neuroscience: Central visual pathways
+    </a>
+    ·
+    <a href="https://eyewiki.aao.org/Homonymous_Hemianopsia"
+       target="_blank" rel="noopener noreferrer">
+      Homonymous hemianopia
+    </a>
+  </p>
+</div>
+
+<footer class="note">
+  <p>
+    Developed by <strong>Adisorn Ratanayotha</strong><br>
+    Faculty of Medicine Siriraj Hospital,<br>
+    Mahidol University, Thailand
+  </p>
+</footer>
+</main>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const NS="http://www.w3.org/2000/svg";
+const colors={left:"#ffcf69",right:"#6cdde8"};
+let playing=true,clock=0,last=null,revealed=false;
+
+const descriptions={
+  normal:[
+    "Normal visual fields.",
+    "Each optic tract, LGN, optic radiation, and visual cortex carries the opposite visual hemifield from both eyes."
+  ],
+  RON:["Right monocular visual loss.","A complete right optic nerve lesion interrupts all visual input from the right eye."],
+  LON:["Left monocular visual loss.","A complete left optic nerve lesion interrupts all visual input from the left eye."],
+  CH:["Bitemporal hemianopia.","Selective interruption of crossing nasal retinal fibers removes the temporal field of each eye."],
+  RT:["Left homonymous hemianopia.","The right optic tract carries the left visual hemifield from both eyes."],
+  LT:["Right homonymous hemianopia.","The left optic tract carries the right visual hemifield from both eyes."],
+  RL:["Left homonymous hemianopia.","This example assumes complete interruption of the right LGN."],
+  LL:["Right homonymous hemianopia.","This example assumes complete interruption of the left LGN."],
+  RM:["Left superior homonymous quadrantanopia.","Right Meyer’s loop carries inferior retinal fibers representing the left superior visual quadrant."],
+  LM:["Right superior homonymous quadrantanopia.","Left Meyer’s loop carries inferior retinal fibers representing the right superior visual quadrant."],
+  RP:["Left inferior homonymous quadrantanopia.","Right parietal optic radiation carries superior retinal fibers representing the left inferior visual quadrant."],
+  LP:["Right inferior homonymous quadrantanopia.","Left parietal optic radiation carries superior retinal fibers representing the right inferior visual quadrant."],
+  RR:["Left homonymous hemianopia.","A complete right optic radiation lesion interrupts the left visual hemifield."],
+  LR:["Right homonymous hemianopia.","A complete left optic radiation lesion interrupts the right visual hemifield."],
+  RC:["Left homonymous hemianopia.","The right primary visual cortex represents the left visual hemifield."],
+  LC:["Right homonymous hemianopia.","The left primary visual cortex represents the right visual hemifield."]
+};
+
+function hidden(){
+  return $("predict").checked&&!revealed;
+}
+function element(tag,attrs,parent){
+  const e=document.createElementNS(NS,tag);
+  for(const [k,v] of Object.entries(attrs))e.setAttribute(k,v);
+  parent.appendChild(e);return e;
+}
+
+function defect(eye){
+  const l=$("lesion").value;
+  if(l==="normal")return null;
+  if(l==="RON")return eye==="R"?"all":null;
+  if(l==="LON")return eye==="L"?"all":null;
+  if(l==="CH")return eye==="L"?"left":"right";
+  if(["RT","RL","RR","RC"].includes(l))return "left";
+  if(["LT","LL","LR","LC"].includes(l))return "right";
+  if(l==="RM")return "upperLeft";
+  if(l==="LM")return "upperRight";
+  if(l==="RP")return "lowerLeft";
+  if(l==="LP")return "lowerRight";
+  return null;
+}
+
+function drawFields(){
+  const root=$("fields");
+  root.replaceChildren();
+
+  for(const eye of ["L","R"]){
+    const cx=eye==="L"?280:720,cy=195,r=130;
+    const group=element("g",{"clip-path":`url(#fieldClip${eye})`},root);
+
+    if(hidden()){
+      element("circle",{cx,cy,r,fill:"#344b65"},group);
+      const t=element("text",{
+        x:cx,y:cy+12,fill:"#eaf2ff",
+        "font-size":40,"text-anchor":"middle"
+      },group);
+      t.textContent="?";
+      continue;
+    }
+
+    element("rect",{x:cx-r,y:cy-r,width:r,height:2*r,fill:colors.left},group);
+    element("rect",{x:cx,y:cy-r,width:r,height:2*r,fill:colors.right},group);
+
+    const d=defect(eye);
+    if(d){
+      let x=cx-r,y=cy-r,w=2*r,h=2*r;
+      if(d!=="all"){
+        w=r;
+        if(d.includes("Right")||d==="right")x=cx;
+        if(d.startsWith("upper"))h=r;
+        if(d.startsWith("lower")){y=cy;h=r;}
+      }
+      element("rect",{x,y,width:w,height:h,fill:"url(#lossPattern)"},group);
+
+      const cortical=["RC","LC"].includes($("lesion").value);
+      if(cortical&&$("sparing").checked){
+        // Restore a small central region on the lost side.
+        const central=element("g",{},group);
+        const id="central"+eye;
+        const defs=element("defs",{},central);
+        const clip=element("clipPath",{id},defs);
+        element("circle",{cx,cy,r:23},clip);
+        const cg=element("g",{"clip-path":`url(#${id})`},central);
+        element("rect",{
+          x:cx-23,y:cy-23,width:23,height:46,fill:colors.left
+        },cg);
+        element("rect",{
+          x:cx,y:cy-23,width:23,height:46,fill:colors.right
+        },cg);
+      }
+    }
+
+    element("path",{
+      d:`M${cx-r} ${cy} H${cx+r} M${cx} ${cy-r} V${cy+r}`,
+      fill:"none",stroke:"#263e5e","stroke-width":2
+    },group);
+    element("circle",{cx,cy,r:4,fill:"#101b2c"},group);
+  }
+}
+
+/*
+ Four representative retinal streams:
+ L temporal → L hemisphere → right field.
+ L nasal    → R hemisphere → left field.
+ R nasal    → L hemisphere → right field.
+ R temporal → R hemisphere → left field.
+*/
+const streams=[
+  {eye:"L",nasal:false,hemisphere:"L",field:"right",
+   d:"M215 110 L215 180 Q215 250 250 300 L250 420 L175 535 L250 600 L250 635"},
+  {eye:"L",nasal:true,hemisphere:"R",field:"left",
+   d:"M345 110 L345 180 L500 250 L690 300 L690 420 L620 535 L690 600 L690 635"},
+  {eye:"R",nasal:true,hemisphere:"L",field:"right",
+   d:"M655 110 L655 180 L500 250 L310 300 L310 420 L380 535 L310 600 L310 635"},
+  {eye:"R",nasal:false,hemisphere:"R",field:"left",
+   d:"M785 110 L785 180 Q785 250 750 300 L750 420 L825 535 L750 600 L750 635"}
+];
+
+for(const s of streams){
+  s.path=element("path",{
+    d:s.d,class:"path",stroke:colors[s.field]
+  },$("paths"));
+  s.length=s.path.getTotalLength();
+  s.dot=element("circle",{
+    r:7,class:"packet",fill:colors[s.field]
+  },$("packets"));
+}
+
+function stopY(stream){
+  const l=$("lesion").value;
+  if(l===stream.eye+"ON")return 135;
+  if(l==="CH"&&stream.nasal)return 225;
+  if(l===stream.hemisphere+"T")return 300;
+  if(l===stream.hemisphere+"L")return 375;
+  if(l===stream.hemisphere+"R")return 560;
+  if(l===stream.hemisphere+"C")return 635;
+
+  // Quadrant lesions do not block an entire hemifield stream.
+  return Infinity;
+}
+
+function drawSignals(){
+  streams.forEach((s,i)=>{
+    const fraction=(clock*.22+i*.23)%1;
+    const point=s.path.getPointAtLength(fraction*s.length);
+    const visible=point.y<stopY(s);
+
+    s.dot.setAttribute("cx",point.x);
+    s.dot.setAttribute("cy",point.y);
+    s.dot.style.display=visible?"":"none";
+  });
+}
+
+function update(){
+  drawFields();
+  const lesion=$("lesion").value;
+  const cortical=["RC","LC"].includes(lesion);
+  $("sparing").disabled=!cortical;
+
+  document.querySelectorAll("#circuit .node").forEach(n=>{
+    const selected=n.id==="node"+lesion;
+    n.style.fill=selected?"#713c4b":"#263e5e";
+    n.style.stroke=selected?"#ff9999":"#6986a5";
+  });
+
+  if(hidden()){
+    $("answer").innerHTML=
+      "<p>Predict the field defect in each eye, then select Reveal answer.</p>";
+  }else{
+    const d=descriptions[lesion];
+    let extra="";
+    if(cortical&&$("sparing").checked)
+      extra="<p>Central vision is preserved in the optional macular-sparing illustration.</p>";
+    $("answer").innerHTML=
+      `<p><strong>${d[0]}</strong></p><p>${d[1]}</p>${extra}`;
+  }
+
+  $("reveal").disabled=!$("predict").checked||revealed;
+  drawSignals();
+}
+
+$("lesion").onchange=()=>{revealed=false;update();};
+$("predict").onchange=()=>{revealed=false;update();};
+$("reveal").onclick=()=>{revealed=true;update();};
+$("sparing").onchange=update;
+$("play").onclick=()=>{
+  playing=!playing;last=null;
+  $("play").textContent=playing?"Pause signals":"Play signals";
+};
+$("reset").onclick=()=>{
+  $("lesion").value="normal";
+  $("sparing").checked=false;
+  revealed=false;update();
+};
+document.addEventListener("visibilitychange",()=>{last=null;});
+
+function frame(now){
+  if(last!==null&&playing)
+    clock+=Math.min((now-last)/1000,.1);
+  last=now;
+  drawSignals();
+  requestAnimationFrame(frame);
+}
+update();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
